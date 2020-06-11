@@ -16,6 +16,7 @@ var mouseDown = function(){}
 var mouseMove = function(){}
 var mouseUp = function(){}
 var rectSelected = function(){}
+var rectMoving = function(){}
 
 export default {
   name: 'FabricDemo',
@@ -24,6 +25,7 @@ export default {
     mouseMove = this.canvasMouseMove.bind(this)
     mouseUp = this.canvasMouseUp.bind(this)
     rectSelected = this.rectSelected.bind(this)
+    rectMoving = this.rectMoving.bind(this)
   },
   mounted() {
     this.createCanvas()
@@ -44,7 +46,8 @@ export default {
       curCreatingInfo: {
         x: 0, y: 0
       },
-      curHandlingRect: null
+      curHandlingRect: null,
+      lastOccupiedRect: null
     }
   },
   methods: {
@@ -84,9 +87,7 @@ export default {
       var rect = new fabric.Rect(options)
 
       rect.on('selected', rectSelected)
-      rect.on('moving', function(e) {
-        console.log('moving', e)
-      })
+      rect.on('moving', rectMoving)
       
       //隐藏 controller point
       rect.setControlsVisibility({
@@ -186,17 +187,32 @@ export default {
       console.log(this.mainCanvas.getActiveObject())
     },
 
+    rectMoving(e) {
+      console.log('rectMoving', e)
+      console.warn(e.target)
+      console.warn(e.target.left - 1)
+      if(this.isPosiOccupied(e.target.left - 1)) {
+        console.error(this.lastOccupiedRect)
+      }
+    },
+
     /**
-     * @desc 判断某个点是否被占用
+     * @desc 判断某个点是否被占用（选中的不判断）
      * @param {Number} x x坐标
      * @param {Boolean} isIgnoreLast 是否不检查最新那个 Rect
      */
     isPosiOccupied(x, isIgnoreLast) {
       let flag = false
+      let curRect = this.mainCanvas.getActiveObject()
+      console.log('curRect', curRect)
       // let occupiedObject = null
       console.log('判断 isPosiOccupied', x)
       //将所有点位 format2 {min:xxx, max:xxx} 这样的对象数组
       const rectRangeList = this.polygons.map((rect, index) => {
+        // if(curRect && curRect.left === rect.left && curRect.width === rect.width) {
+        //   console.error('死啦，不判断')
+        //   return
+        // }
         var range = {
           min: rect.left,
           max: rect.left + rect.width
@@ -205,6 +221,7 @@ export default {
           if(x >= range.min && x <= range.max) {
             flag = true
             // occupiedObject = rect
+            this.lastOccupiedRect = rect
           }
         } 
         return range
