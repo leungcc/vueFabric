@@ -34,7 +34,7 @@ export default {
     // })
 
     this.drawRect({
-      left: 100,
+      left: 200,
       width: 50,
     })
   },
@@ -48,6 +48,8 @@ export default {
       curHandlingRect: null,
       lastOccupiedRect: null,
 
+      curRectMinX: null, //moving 碰到左边块时产生
+      curRectMax: null, //moving 碰到右边块时产生
     }
   },
   methods: {
@@ -113,9 +115,12 @@ export default {
      * @desc 画布鼠标点下事件
      */
     canvasMouseDown(e) {
+      //如果该坐标已经属于某个 rect，不执行
+      // if(this.isPosiOccupied(e.offsetX)) {
+      //   return
+      // }
       const eX = e.pointer.x
 
-      //如果该坐标已经属于某个 rect，不执行
       if(this.mainCanvas.findTarget(e)) {
         console.warn('findTarget!!')
         return
@@ -139,6 +144,9 @@ export default {
      * @desc 画布上鼠标移动事件
      */
     canvasMouseMove(e) {
+      // if(e.target.tagName !== 'CANVAS') {
+      //   return
+      // }
 
       //判断是否超出边界
       console.warn('[Event canvasMouseMove]', e)
@@ -149,7 +157,13 @@ export default {
       }
 
       //先判断移动后的坐标是否有冲突
-      const eX = e.pointer.x
+      let eX = e.pointer.x
+
+      //不允许反向添加
+      if(eX < this.curCreatingInfoX) {
+        eX = this.curCreatingInfoX
+      }
+
       if(this.isPosiOccupied(eX + 1, true)) {
         console.error('拖到下一个object里面了')
         return
@@ -159,12 +173,13 @@ export default {
         return
       }
 
+      console.log('通过，当前x=', eX)
       this.curHandlingRect.setOptions({
         width: eX - this.curCreatingInfoX
       })
       this.curHandlingRect.setCoords()
       this.curHandlingRect.render(this.mainCanvas.getSelectionContext())
-      console.warn(eX - this.curCreatingInfoX)
+
       
     },
 
@@ -176,10 +191,16 @@ export default {
       this.mainCanvas.off('mouse:move', mouseMove)
       this.mainCanvas.off('mouse:up', mouseUp)
 
+      if(this.curHandlingRect.width < 20) {
+        this.curHandlingRect.set('width', 20)
+        this.curHandlingRect.setCoords()
+      }
       this.mainCanvas.renderAll()
       this.mainCanvas.discardActiveObject()
 
       setTimeout(() => {
+        
+        console.log(this.curHandlingRect)
         this.mainCanvas.setActiveObject(this.curHandlingRect)
         this.curHandlingRect = null
       }, 0)
@@ -188,11 +209,129 @@ export default {
     rectSelected(e) {
       console.log('rectSelected', e)
       this.lastOccupiedRect = null
+      this.curRectMinX = null
+      this.curRectMaxX = null
     },
 
     rectMoving(e) {
-      console.warn('[Event rectMoving]', e)
+      // console.warn('[Event rectMoving]', e)
+      const curRect = this.mainCanvas.getActiveObject()
+      const judgeLx = curRect.width > 0? curRect.left : curRect.width + curRect.left
+      const judgeRx = curRect.width > 0? curRect.left + curRect.width : curRect.left
+      console.log(`judgeLx=${judgeLx}, judgeRx=${judgeRx}`)
 
+      let moveForward = e.e.movementX <= 0 ? 'left':'right'
+      console.warn(`运动方向:${moveForward}`)
+
+      //和上次的移动方向不一致，清除 lastOccupiedRect
+      if(moveForward !== this.lastMoveForward) {
+        this.lastOccupiedRect = null
+      }
+
+      //getBoundingRect()获得的 width 肯定是正数
+      let lastOccupiedRectLeft = null
+      let lastOccupiedRectRight = null
+      if(this.lastOccupiedRect) {
+        let lastOccupiedRectBoundingRect = this.lastOccupiedRect && this.lastOccupiedRect.getBoundingRect()
+        lastOccupiedRectLeft = lastOccupiedRectBoundingRect.left
+        lastOccupiedRectRight = lastOccupiedRectBoundingRect.left + lastOccupiedRectBoundingRect.width
+      }
+
+      //向左运动
+      if(moveForward === 'left') {
+        //碰到左边块
+        if(
+            ((lastOccupiedRectRight && judgeLx <= lastOccupiedRectRight) 
+              || 
+            this.isPosiOccupied(judgeLx - 1)
+          )
+          && (
+            !this.curRectMaxX
+              ||
+            (this.curRectMaxX && curRect.left < this.curRectMaxX)
+          )
+          && (
+            !this.curRectMaxX
+              ||
+            (this.curRectMaxX && this.getRectRightX(this.lastOccupiedRect) < this.curRectMaxX)
+          )
+        ) {
+          const lastOccupiedRectRX = this.getRectRightX(this.lastOccupiedRect)
+          console.error('碰到 [左] 块', `lastOccupiedRectRX=${lastOccupiedRectRX}`)
+          this.curRectMinX = lastOccupiedRectRX + 1
+          if(curRect.width > 0) {
+            curRect.set('left', lastOccupiedRectRX + 1)
+          } else {
+            curRect.set('width', -(lastOccupiedRectRX - 1))
+            curRect.set('left', lastOccupiedRectRX - curRect.width - 1)
+          }
+        }
+      }
+
+      //向右运动
+      if(moveForward === 'right') {
+        console.warn(`this.curRectMinX=${this.curRectMinX}, curRect.left=${curRect.left}`)
+        //碰到右边块
+        if((
+            (lastOccupiedRectLeft && judgeRx >= lastOccupiedRectLeft) 
+              ||
+            this.isPosiOccupied(judgeRx + 1)
+          )
+          && (
+            !this.curRectMinX 
+              || 
+            (this.curRectMinX && curRect.left > this.curRectMinX)
+          )
+          && (
+            !this.curRectMinX
+              ||
+            (this.curRectMinX && this.getRectLeftX(this.lastOccupiedRect) - 1 > this.curRectMinX)
+          )
+        ) {
+          const lastOccupiedRectLX = this.getRectLeftX(this.lastOccupiedRect)
+          console.error('碰到 [右] 块', `curRect.left=${curRect.left}, this.curRectMinX=${this.curRectMinX}, curRectMaxX=${lastOccupiedRectLX - 1}`)
+          this.curRectMaxX = lastOccupiedRectLX - 1
+          if(curRect.width > 0) {
+            curRect.set('left', lastOccupiedRectLX - curRect.width)
+          } else {
+            curRect.set('left', lastOccupiedRectLX - 1)
+          }
+        } else {
+          // if(this.curRectMinX && curRectBoundingRect.left < this.curRectMinX)
+        }
+        
+      }
+
+      let curRectBoundingRect = curRect.getBoundingRect()
+      console.log(`this.curRectMinX=${this.curRectMinX}, curRect.left=${curRect.left}`)
+      //左右极限值
+      if(this.curRectMinX) {
+        if(curRect.width >= 0 && curRect.left < this.curRectMinX) {
+          console.error('~~~太左了，给一个 curRectMinX 给你')
+          curRect.set('left', this.curRectMinX)
+          // curRect.setCoords()
+        } else if(curRect.width < 0 && curRect.left < this.curRectMinX) {
+          curRect.set('width', -curRectBoundingRect.width)
+          curRect.set('left', this.curRectMinX + curRectBoundingRect.width)
+        }
+      }
+      if(this.curRectMaxX) {
+        if(curRect.width >= 0 && (curRect.left + curRect.width) > this.curRectMaxX) {
+          console.error('~~~太右了，给一个 curRectMaxX 给你')
+          curRect.set('left', this.curRectMaxX - curRect.width)
+        } else if(curRect.width < 0 && curRect.left > this.curRectMaxX) {
+          curRect.set('width', -curRectBoundingRect.width)
+          curRect.set('left', this.curRectMaxX)
+        }
+      }
+
+      //运动范围>0且小于画布宽度
+      if(judgeRx >= this.el_canvas.width) {
+        this.setRectLeftWidth(curRect, this.el_canvas.width - curRect.width, curRect.width)
+      }
+
+      //记录上一次的运动方向
+      this.lastMoveForward = e.e.movementX <= 0 ? 'left':'right'
     },
 
     /**
@@ -223,6 +362,7 @@ export default {
         } 
         return range
       })
+      console.log(`isPosiOccupied, 判断x=${x}, 结果=${flag}`)
       return flag
     },
 
