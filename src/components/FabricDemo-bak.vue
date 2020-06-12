@@ -216,6 +216,7 @@ export default {
     rectMoving(e) {
       // console.warn('[Event rectMoving]', e)
       const curRect = this.mainCanvas.getActiveObject()
+      console.error(curRect)
       const judgeLx = curRect.width > 0? curRect.left : curRect.width + curRect.left
       const judgeRx = curRect.width > 0? curRect.left + curRect.width : curRect.left
       console.log(`judgeLx=${judgeLx}, judgeRx=${judgeRx}`)
@@ -330,6 +331,8 @@ export default {
         this.setRectLeftWidth(curRect, this.el_canvas.width - curRect.width, curRect.width)
       }
 
+      curRect.setCoords()
+      this.mainCanvas.renderAll()
       //记录上一次的运动方向
       this.lastMoveForward = e.e.movementX <= 0 ? 'left':'right'
     },
