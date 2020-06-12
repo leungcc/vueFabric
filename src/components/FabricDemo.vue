@@ -9,6 +9,7 @@
 </template>
 
 <script>
+// import commUtils from '@/base/utils/commUtils'
 import { fabric } from 'fabric'
 
 var mouseDown = function(){}
@@ -57,9 +58,12 @@ export default {
     createCanvas() {
       const el_body = document.querySelector('body')
       this.el_canvas = document.querySelector('#main-canvas')
-      this.el_canvas.width = el_body.clientWidth
+      // this.el_canvas.width = el_body.clientWidth
+      // this.el_canvas.setAttribute('width', el_body.clientWidth)
       this.mainCanvas = new fabric.Canvas(this.el_canvas)
       this.mainCanvas.on('mouse:down', mouseDown)
+      console.warn(`this.el_canvas.width=${this.el_canvas.width}`)
+      console.warn(`el_body.clientWidth=${el_body.clientWidth}`)
     },
 
     /**
@@ -192,7 +196,8 @@ export default {
 
     rectMoving(e) {
       console.warn('[Event rectMoving]', e)
-
+      const { minX, maxX } = this.getMinMaxX(e.target)
+      console.log(`minX=${minX}, maxX=${maxX}`)
     },
 
     /**
@@ -247,22 +252,58 @@ export default {
         return rect.left + rect.width
       }
     },
-    
+
     /**
-     * @desc 解决问题：rect的width有正数和负数，负数时left是右边坐标
-     * @param {fabric.rect} rect
-     * @param {number} left 矩形左边坐标
-     * @param {number} width left为左边时的矩形宽度
+     * @desc 获取一个图形的可移动最小x，与可移动最大x
+     *        即找出相邻的两个图形
+     * @param {fabric.Rect} rect
+     * @return {{minX: number, maxX: number}
      */
-    setRectLeftWidth(rect, left, width) {
-      if(rect.width >= 0) {
-        rect.set('left', left)
-        rect.set('width', width)
-      } else {
-        rect.set('left', left + width)
-        rect.set('width', -width)
+    getMinMaxX(rect) {
+      let rectLX = this.getRectLeftX(rect)
+      let rectRX = this.getRectRightX(rect)
+      let leftRect = null
+      let rightRect = null
+      
+      this.polygons.forEach(curRect => {
+        console.log(curRect)
+        if(/* curRect.uuid === rect.uuid */this.isSameRect(curRect, rect)) {
+          return
+        }
+        let curRectLX = this.getRectLeftX(curRect)
+        let curRectRX = this.getRectRightX(curRect)
+        if(curRectRX < rectLX) {
+          if(leftRect) {
+            leftRect = this.getRectRightX(leftRect) > curRectRX ? leftRect : curRect
+          } else {
+            leftRect = curRect
+          }
+        }
+        if(curRectLX > rectRX) {
+          if(rightRect) {
+            rightRect = this.getRectLeftX(rightRect) < curRectLX ? rightRect : curRect
+          } else {
+            rightRect = curRect
+          }
+        }
+      })
+
+      return {
+        minX: leftRect && this.getRectRightX(leftRect) || 0,
+        maxX: rightRect && this.getRectLeftX(rightRect) || this.el_canvas.width
       }
+    },
+
+    /**
+     * @desc 判断两个 rect 是否为同一个
+     */
+    isSameRect(rectA, rectB) {
+      if(Math.abs(rectA.left - rectB.left) < 1 && Math.abs(rectA.width - rectB.width) < 1) {
+        return true
+      }
+      return false
     }
+    
   }
 }
 </script>

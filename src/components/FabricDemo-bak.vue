@@ -9,6 +9,7 @@
 </template>
 
 <script>
+import commUtils from '@/base/utils/commUtil'
 import { fabric } from 'fabric'
 
 var mouseDown = function(){}
@@ -89,6 +90,7 @@ export default {
 
       //创建矩形
       var rect = new fabric.Rect(options)
+      rect.uuid = commUtils.uuid()
 
       rect.on('selected', rectSelected)
       rect.on('moving', rectMoving)

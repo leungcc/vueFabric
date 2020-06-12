@@ -8,7 +8,8 @@
 
 <script>
 import HelloWorld from './components/HelloWorld.vue'
-import FabricDemo from './components/FabricDemo-bak.vue'
+// import FabricDemo from './components/FabricDemo-bak.vue'
+import FabricDemo from './components/FabricDemo.vue'
 
 export default {
   name: 'App',
