@@ -17,7 +17,6 @@ var mouseMove = function(){}
 var mouseUp = function(){}
 var rectSelected = function(){}
 var rectMoving = function(){}
-var rectScaling = function(){}
 
 export default {
   name: 'FabricDemo',
@@ -27,7 +26,6 @@ export default {
     mouseUp = this.canvasMouseUp.bind(this)
     rectSelected = this.rectSelected.bind(this)
     rectMoving = this.rectMoving.bind(this)
-    rectScaling = this.rectScaling.bind(this)
   },
   mounted() {
     this.createCanvas()
@@ -50,13 +48,7 @@ export default {
       curCreatingInfoX: 0,
       curHandlingRect: null,
       lastOccupiedRect: null,
-      curActiveXcRect: {
-        rect: null, //fabric.Rect
-        minX: null, //number
-        maxX: null  //number
-      },
 
-      xcTemp: null
     }
   },
   methods: {
@@ -66,7 +58,7 @@ export default {
     createCanvas() {
       const el_body = document.querySelector('body')
       this.el_canvas = document.querySelector('#main-canvas')
-      this.el_canvas.width = el_body.clientWidth
+      // this.el_canvas.width = el_body.clientWidth
       // this.el_canvas.setAttribute('width', el_body.clientWidth)
       this.mainCanvas = new fabric.Canvas(this.el_canvas)
       this.mainCanvas.on('mouse:down', mouseDown)
@@ -102,7 +94,6 @@ export default {
 
       rect.on('selected', rectSelected)
       rect.on('moving', rectMoving)
-      rect.on('scaling', rectScaling)
       
       //隐藏 controller point
       rect.setControlsVisibility({
@@ -135,9 +126,7 @@ export default {
       }
 
       //超过上限不再创建
-      if(this.polygons.length > 6) {
-        return
-      }
+      if(this.polygons.length)
 
       this.curCreatingInfoX = eX
 
@@ -164,13 +153,7 @@ export default {
       }
 
       //先判断移动后的坐标是否有冲突
-      let eX = e.pointer.x
-
-      //不允许反向添加
-      if(eX < this.curCreatingInfoX) {
-        eX = this.curCreatingInfoX
-      }
-
+      const eX = e.pointer.x
       if(this.isPosiOccupied(eX + 1, true)) {
         console.error('拖到下一个object里面了')
         return
@@ -185,6 +168,8 @@ export default {
       })
       this.curHandlingRect.setCoords()
       this.curHandlingRect.render(this.mainCanvas.getSelectionContext())
+      console.warn(eX - this.curCreatingInfoX)
+      
     },
 
     /**
@@ -194,12 +179,6 @@ export default {
       console.warn('canvasMouseUp')
       this.mainCanvas.off('mouse:move', mouseMove)
       this.mainCanvas.off('mouse:up', mouseUp)
-
-      //不允许创建 [负值] 的矩形
-      if(this.curHandlingRect.width < 20) {
-        this.curHandlingRect.set('width', 20)
-        this.curHandlingRect.setCoords()
-      }
 
       this.mainCanvas.renderAll()
       this.mainCanvas.discardActiveObject()
@@ -211,80 +190,14 @@ export default {
     },
 
     rectSelected(e) {
-      let target = null
-      target = e.target || this.mainCanvas.getActiveObject() 
-      console.log('rectSelected', target)
-
+      console.log('rectSelected', e)
       this.lastOccupiedRect = null
-      const { minX, maxX } = this.getMinMaxX(target)
-      console.error(`minX=${minX}, maxX=${maxX}`)
-      this.curActiveXcRect.rect = target
-      this.curActiveXcRect.minX = minX
-      this.curActiveXcRect.maxX = maxX
-      this.curActiveXcRect.selectedLx = this.getRectLeftX(target) //选中时的 Lx
-      this.curActiveXcRect.selectedRx = this.getRectRightX(target) //选中时的 Rx
     },
 
     rectMoving(e) {
       console.warn('[Event rectMoving]', e)
-      const { minX, maxX } = this.curActiveXcRect
-      
-      if(!minX && !maxX) {
-        throw new Error('sth error, minX&maxX both null')
-      }
-      const curRect = e.target
-      const curRectLx = this.getRectLeftX(curRect)
-      const curRectRx = this.getRectRightX(curRect)
-      if(curRectLx <= minX) {
-        this.setRectLeftWidth(
-          curRect,
-          minX,
-          minX + Math.abs(curRect.width)*curRect.scaleX
-        )
-      } else if(curRectRx >= maxX) {
-        this.setRectLeftWidth(
-          curRect,
-          maxX - Math.abs(curRect.width)*curRect.scaleX,
-          maxX
-        )
-      }
-    },
-
-    rectScaling(e) {
-      console.log('[rectScaling Event]', e)
-      const { minX, maxX } = this.curActiveXcRect
-      if(!minX && !maxX) {
-        throw new Error('sth error, minX&maxX both null')
-      }
-      
-      const curRect = e.target
-      const curRectLx = this.getRectLeftX(curRect)
-      const curRectRx = this.getRectRightX(curRect)
-      
-      let calcScaleX = curRect.scaleX
-      let realWidth = Math.abs(curRect.width) * calcScaleX
-      if(curRectLx-1 <= minX) {
-        console.error(`报警！！！小于 minX:${minX}, curRect.width=${curRect.width}`)
-        // realWidth = this.getRectRightX(curRect) - minX
-        // calcScaleX = realWidth/curRect.width
-        realWidth = this.xcTemp - minX
-        calcScaleX = realWidth/curRect.width
-        curRect.set('left', minX + 1)
-
-      } else if(curRectRx+1 >= maxX) {
-        realWidth = maxX - this.getRectLeftX(curRect) - 1
-        calcScaleX = realWidth/curRect.width
-      } else if(curRectLx > minX && curRectRx < maxX) {
-        this.xcTemp = this.getRectRightX(curRect)
-      }
-
-      curRect.scaleX = calcScaleX
-      curRect.setCoords()
-      this.mainCanvas.renderAll()
-
-      //改变 scaleX 不让它继续改变
-      console.warn(`realWidth=${realWidth}, calcScaleX=${calcScaleX}`)
-      console.error(e.target, `this.xcTemp=${this.xcTemp}`)
+      const { minX, maxX } = this.getMinMaxX(e.target)
+      console.log(`minX=${minX}, maxX=${maxX}`)
     },
 
     /**
@@ -323,8 +236,7 @@ export default {
         return null
       }
       if(rect.width > 0) {
-        console.log('getRectRightX', rect.left + rect.width*rect.scaleX)
-        return parseInt(rect.left + rect.width*rect.scaleX)
+        return rect.left + rect.width
       } else {
         return rect.left
       }
@@ -337,7 +249,7 @@ export default {
       if(rect.width > 0) {
         return rect.left
       } else {
-        return parseInt(rect.left + rect.width*rect.scaleX)
+        return rect.left + rect.width
       }
     },
 
@@ -348,13 +260,13 @@ export default {
      * @return {{minX: number, maxX: number}
      */
     getMinMaxX(rect) {
-      console.error('getMinMaxX', rect)
       let rectLX = this.getRectLeftX(rect)
       let rectRX = this.getRectRightX(rect)
       let leftRect = null
       let rightRect = null
       
       this.polygons.forEach(curRect => {
+        console.log(curRect)
         if(/* curRect.uuid === rect.uuid */this.isSameRect(curRect, rect)) {
           return
         }
@@ -377,8 +289,8 @@ export default {
       })
 
       return {
-        minX: leftRect && this.getRectRightX(leftRect) + 1 || 0,
-        maxX: rightRect && this.getRectLeftX(rightRect) - 1 || this.el_canvas.width
+        minX: leftRect && this.getRectRightX(leftRect) || 0,
+        maxX: rightRect && this.getRectLeftX(rightRect) || this.el_canvas.width
       }
     },
 
@@ -390,22 +302,6 @@ export default {
         return true
       }
       return false
-    },
-
-    /**
-     * @desc 设置一个rect的left和width
-     * @param {fabric.Rect}
-     * @param {number} lx 矩形左坐标
-     * @param {number} rx 矩形右坐标
-     */
-    setRectLeftWidth(rect, lx, rx) {
-      if(rect.width > 0) {
-        rect.set('left', lx)
-        rect.set('width', (rx - lx)/rect.scaleX)
-      } else {
-        rect.set('left', rx)
-        rect.set('width', lx - rx)
-      }
     }
     
   }
